@@ -17,15 +17,15 @@ export default function Layout({ tab, setTab, children }) {
           "linear-gradient(135deg, #fffae5 0%, #ffe4f3 35%, #e0f4ff 100%)",
         padding: "1.5rem 2rem",
         boxSizing: "border-box",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily:
+          "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Shell */}
       <div
         style={{
           maxWidth: "1280px",
           margin: "0 auto",
-          background: "rgba(255,255,255,0.9)",
+          background: "rgba(255,255,255,0.94)",
           borderRadius: "1.5rem",
           padding: "1.25rem 1.5rem 1.5rem",
           boxShadow: "0 18px 45px rgba(15,23,42,0.16)",
@@ -65,24 +65,6 @@ export default function Layout({ tab, setTab, children }) {
               Membership • Dues • Attendance • Reports
             </div>
           </div>
-          <button
-            onClick={() => setTab("members")}
-            style={{
-              padding: "0.35rem 1.1rem",
-              borderRadius: "999px",
-              background: "rgba(255,255,255,0.18)",
-              fontSize: "0.9rem",
-              fontWeight: 500,
-              color: "#111827",
-              border: "1px solid rgba(148,163,253,0.6)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-            }}
-          >
-            Local Admin Portal
-          </button>
         </div>
 
         {/* Tabs */}
@@ -92,17 +74,17 @@ export default function Layout({ tab, setTab, children }) {
             gap: "0.4rem",
             padding: "0.25rem",
             borderRadius: "999px",
-            background: "rgba(243,244,246,0.95)",
+            background: "rgba(243,244,246,0.98)",
             alignItems: "center",
             flexWrap: "wrap",
           }}
         >
-          {tabs.map((t) => {
-            const active = tab === t.id;
+          {tabs.map(({ id, label }) => {
+            const active = tab === id;
             return (
               <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
+                key={id}
+                onClick={() => setTab(id)}
                 style={{
                   padding: "0.55rem 1.4rem",
                   borderRadius: "999px",
@@ -120,7 +102,7 @@ export default function Layout({ tab, setTab, children }) {
                   transition: "all 0.18s ease",
                 }}
               >
-                {t.label}
+                {label}
               </button>
             );
           })}
