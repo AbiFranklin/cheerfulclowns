@@ -1,37 +1,54 @@
 import { useEffect, useState } from "react";
 import { fetchMembers, deleteMember } from "../api";
 
-export default function MembersPage({ goToAddMember }) {
+export default function MembersPage({ goToAddMember, onEditMember }) {
   const [members, setMembers] = useState([]);
-  const [statusFilter, setStatusFilter] = useState("Active");
-
-  const load = async () => {
-    const data = await fetchMembers(
-      statusFilter ? { status: statusFilter } : {}
-    );
-    setMembers(data);
-  };
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     load();
-  }, [statusFilter]);
+  }, []);
 
-  const onDelete = async (id) => {
-    if (window.confirm("Delete this member?")) {
-      await deleteMember(id);
-      load();
+  async function load() {
+    try {
+      setLoading(true);
+      const data = await fetchMembers();
+      setMembers(data);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load members.");
+    } finally {
+      setLoading(false);
     }
-  };
+  }
+
+  async function handleDelete(id) {
+    if (
+      !window.confirm(
+        "Delete this member? This will also remove their dues and attendance."
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteMember(id);
+      await load();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete member.");
+    }
+  }
 
   return (
     <div className="page-section">
+      {/* Header */}
       <div
         style={{
           display: "flex",
-          alignItems: "center",
           justifyContent: "space-between",
           gap: "1rem",
           marginBottom: "0.75rem",
+          alignItems: "center",
         }}
       >
         <div>
@@ -43,120 +60,148 @@ export default function MembersPage({ goToAddMember }) {
               color: "#6b7280",
             }}
           >
-            View and manage all current and past members.
+            Browse all members and open full profiles to edit.
           </p>
         </div>
-
-        <div
-          style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}
+        <button
+          type="button"
+          onClick={goToAddMember}
+          style={{
+            padding: "0.5rem 1.2rem",
+            borderRadius: "999px",
+            border: "none",
+            background: "#1982c4",
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: "0.9rem",
+            cursor: "pointer",
+          }}
         >
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value || "")}
-            style={{
-              padding: "0.4rem 0.7rem",
-              borderRadius: "999px",
-              border: "1px solid #d1d5db",
-              fontSize: "0.95rem",
-            }}
-          >
-            <option value="Active">Active</option>
-            <option value="">All</option>
-            <option value="Inactive">Inactive</option>
-            <option value="Honorary">Honorary</option>
-          </select>
-
-          <button
-            onClick={goToAddMember}
-            style={{
-              padding: "0.5rem 1.1rem",
-              borderRadius: "999px",
-              border: "none",
-              background: "#8ac926",
-              color: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            + Add Member
-          </button>
-        </div>
+          + Add Member
+        </button>
       </div>
 
-      <table className="table" style={{ marginTop: "0.5rem" }}>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Clown Name</th>
-            <th>Name</th>
-            <th>Status</th>
-            <th>Type</th>
-            <th>Phone</th>
-            <th>Email</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((m) => (
-            <tr key={m.id}>
-              <td>{m.memberNumber}</td>
-              <td>{m.clownName}</td>
-              <td>
-                {m.firstName} {m.lastName}
-              </td>
-              <td>{m.membershipStatus}</td>
-              <td>{m.membershipType}</td>
-              <td>{m.phone}</td>
-              <td>{m.email}</td>
-              <td>
-                {/* You can later wire an Edit Member page/tab here */}
-                <button
-                  onClick={() =>
-                    alert("Edit view coming soon – data is already wired.")
-                  }
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    color: "#1982c4",
-                    cursor: "pointer",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => onDelete(m.id)}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    color: "#ff595e",
-                    cursor: "pointer",
-                    marginLeft: "0.4rem",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-
-          {members.length === 0 && (
-            <tr>
-              <td
-                colSpan="8"
-                style={{
-                  padding: "1rem",
-                  textAlign: "center",
-                  color: "#9ca3af",
-                }}
-              >
-                No members yet. Use “Add Member” to create your first record.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      {loading ? (
+        <div>Loading members...</div>
+      ) : members.length === 0 ? (
+        <div style={{ color: "#9ca3af", fontSize: "0.95rem" }}>
+          No members yet. Add your first member to get started.
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table
+            className="table"
+            style={{
+              width: "100%",
+              fontSize: "0.88rem",
+              borderCollapse: "collapse",
+            }}
+          >
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Clown / Name</th>
+                <th>Contact</th>
+                <th>Membership</th>
+                <th>COAI / TCA</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m) => (
+                <tr key={m.id}>
+                  <td>{m.memberNumber}</td>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>
+                      {m.clownName || (
+                        <span style={{ color: "#9ca3af" }}>No clown name</span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.8rem",
+                        color: "#6b7280",
+                      }}
+                    >
+                      {m.firstName} {m.lastName}
+                    </div>
+                  </td>
+                  <td>
+                    <div>{m.phone || <span style={{ color: "#9ca3af" }}>No phone</span>}</div>
+                    <div
+                      style={{
+                        fontSize: "0.78rem",
+                        color: "#6b7280",
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      {m.email || <span style={{ color: "#9ca3af" }}>No email</span>}
+                    </div>
+                  </td>
+                  <td>
+                    <div>{m.membershipType || "-"}</div>
+                    <div
+                      style={{
+                        fontSize: "0.78rem",
+                        color:
+                          m.membershipStatus === "Active"
+                            ? "#16a34a"
+                            : "#6b7280",
+                      }}
+                    >
+                      {m.membershipStatus || "-"}
+                    </div>
+                    {m.deceased ? (
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#b91c1c",
+                        }}
+                      >
+                        Deceased
+                      </div>
+                    ) : null}
+                  </td>
+                  <td>
+                    <div>COAI: {m.coaiNumber || "-"}</div>
+                    <div>TCA: {m.tcaNumber || "-"}</div>
+                  </td>
+                  <td>
+                    <button
+                      onClick={() => onEditMember(m)}
+                      style={{
+                        marginRight: "0.25rem",
+                        padding: "0.2rem 0.55rem",
+                        borderRadius: "999px",
+                        border: "1px solid #d1d5db",
+                        background: "#fff",
+                        fontSize: "0.75rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(m.id)}
+                      style={{
+                        padding: "0.2rem 0.55rem",
+                        borderRadius: "999px",
+                        border: "none",
+                        background: "#ef4444",
+                        color: "#fff",
+                        fontSize: "0.75rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

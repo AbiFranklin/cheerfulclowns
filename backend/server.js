@@ -9,15 +9,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// =========================================================
-// DB HELPERS
-// =========================================================
+// ---------- DB HELPER WRAPPERS ----------
 
 function run(sql, params = []) {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {
       if (err) reject(err);
-      else resolve(this); // has lastID, changes
+      else resolve(this); // this.lastID, this.changes
     });
   });
 }
@@ -44,7 +42,7 @@ function get(sql, params = []) {
 // MEMBERS
 // =========================================================
 
-// List members (optional: status filter, simple sort)
+// GET /api/members
 app.get("/api/members", async (req, res) => {
   try {
     const { status, sortBy } = req.query;
@@ -57,10 +55,10 @@ app.get("/api/members", async (req, res) => {
     }
 
     if (sortBy === "status") {
-      sql += " ORDER BY membershipStatus ASC, lastName ASC";
+      sql += " ORDER BY membershipStatus ASC, lastName ASC, firstName ASC";
     } else if (sortBy === "birthdate") {
-      // Placeholder: no birthdate column; using joinDate as proxy
-      sql += " ORDER BY joinDate ASC, lastName ASC";
+      // Placeholder: you can change this if you add a birthdate column
+      sql += " ORDER BY joinDate ASC, lastName ASC, firstName ASC";
     } else {
       sql += " ORDER BY lastName ASC, firstName ASC";
     }
@@ -73,7 +71,7 @@ app.get("/api/members", async (req, res) => {
   }
 });
 
-// Create member
+// POST /api/members
 app.post("/api/members", async (req, res) => {
   try {
     const m = req.body;
@@ -133,7 +131,7 @@ app.post("/api/members", async (req, res) => {
   }
 });
 
-// Update member
+// PUT /api/members/:id
 app.put("/api/members/:id", async (req, res) => {
   try {
     const id = req.params.id;
@@ -187,9 +185,7 @@ app.put("/api/members/:id", async (req, res) => {
 
     await run(sql, params);
     const updated = await get("SELECT * FROM members WHERE id = ?", [id]);
-    if (!updated) {
-      return res.status(404).json({ error: "Member not found" });
-    }
+    if (!updated) return res.status(404).json({ error: "Member not found" });
     res.json(updated);
   } catch (err) {
     console.error("Error updating member:", err);
@@ -197,7 +193,7 @@ app.put("/api/members/:id", async (req, res) => {
   }
 });
 
-// Delete member
+// DELETE /api/members/:id
 app.delete("/api/members/:id", async (req, res) => {
   try {
     await run("DELETE FROM members WHERE id = ?", [req.params.id]);
@@ -213,7 +209,7 @@ app.delete("/api/members/:id", async (req, res) => {
 // (table: dues (id, memberId, year, amount, paidDate, notes))
 // =========================================================
 
-// Get all dues (with member info)
+// GET /api/dues  (all dues, with member info)
 app.get("/api/dues", async (req, res) => {
   try {
     const rows = await all(
@@ -233,7 +229,7 @@ app.get("/api/dues", async (req, res) => {
   }
 });
 
-// Get dues for a specific member
+// GET /api/members/:memberId/dues
 app.get("/api/members/:memberId/dues", async (req, res) => {
   try {
     const { memberId } = req.params;
@@ -250,23 +246,43 @@ app.get("/api/members/:memberId/dues", async (req, res) => {
   }
 });
 
-// Add dues for a specific member
+// POST /api/members/:memberId/dues
 // Body: { year, amount, paidDate, notes }
+// Allows amount = 0
 app.post("/api/members/:memberId/dues", async (req, res) => {
   try {
     const { memberId } = req.params;
     const { year, amount, paidDate, notes } = req.body;
 
-    if (!year || !amount || !paidDate) {
+    // Check presence (allow 0 for amount)
+    if (
+      year === undefined ||
+      year === null ||
+      paidDate === undefined ||
+      paidDate === null ||
+      paidDate === "" ||
+      amount === undefined ||
+      amount === null ||
+      amount === ""
+    ) {
       return res
         .status(400)
         .json({ error: "year, amount, and paidDate are required" });
     }
 
+    const numYear = Number(year);
+    const numAmount = Number(amount);
+
+    if (Number.isNaN(numYear) || Number.isNaN(numAmount)) {
+      return res
+        .status(400)
+        .json({ error: "year and amount must be valid numbers" });
+    }
+
     const result = await run(
       `INSERT INTO dues (memberId, year, amount, paidDate, notes)
        VALUES (?, ?, ?, ?, ?)`,
-      [memberId, year, amount, paidDate, notes || ""]
+      [memberId, numYear, numAmount, paidDate, notes || ""]
     );
 
     const created = await get("SELECT * FROM dues WHERE id = ?", [
@@ -279,7 +295,7 @@ app.post("/api/members/:memberId/dues", async (req, res) => {
   }
 });
 
-// Update dues
+// PUT /api/dues/:id
 // Body: { year, amount, paidDate, notes }
 app.put("/api/dues/:id", async (req, res) => {
   try {
@@ -291,17 +307,34 @@ app.put("/api/dues/:id", async (req, res) => {
       return res.status(404).json({ error: "Dues record not found" });
     }
 
+    const nextYear =
+      year !== undefined && year !== null
+        ? Number(year)
+        : existing.year;
+    const nextAmount =
+      amount !== undefined && amount !== null && amount !== ""
+        ? Number(amount)
+        : existing.amount;
+    const nextPaidDate =
+      paidDate !== undefined && paidDate !== null && paidDate !== ""
+        ? paidDate
+        : existing.paidDate;
+    const nextNotes =
+      notes !== undefined && notes !== null
+        ? notes
+        : existing.notes;
+
+    if (Number.isNaN(nextYear) || Number.isNaN(nextAmount)) {
+      return res
+        .status(400)
+        .json({ error: "year and amount must be valid numbers" });
+    }
+
     await run(
       `UPDATE dues
        SET year = ?, amount = ?, paidDate = ?, notes = ?
        WHERE id = ?`,
-      [
-        year ?? existing.year,
-        amount ?? existing.amount,
-        paidDate ?? existing.paidDate,
-        notes ?? existing.notes,
-        id
-      ]
+      [nextYear, nextAmount, nextPaidDate, nextNotes, id]
     );
 
     const updated = await get("SELECT * FROM dues WHERE id = ?", [id]);
@@ -312,7 +345,7 @@ app.put("/api/dues/:id", async (req, res) => {
   }
 });
 
-// Delete dues
+// DELETE /api/dues/:id
 app.delete("/api/dues/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -325,16 +358,18 @@ app.delete("/api/dues/:id", async (req, res) => {
 });
 
 // =========================================================
-// UPCOMING + DELINQUENT DUES REPORT
+// UPCOMING / DELINQUENT DUES REPORT
 // =========================================================
 //
 // GET /api/reports/dues-upcoming?days=30
 // Includes:
-// - Active, non-deceased members
-// - Excludes membershipType = 'Whisper'
-// - Members whose next due date is within next N days
-// - PLUS members whose next due date is already past (delinquent)
-
+//  - Active, non-deceased members
+//  - Excludes membershipType = 'Whisper'
+//  - Uses last paidDate if any; otherwise joinDate; otherwise treats as overdue
+//  - Returns members whose next due is:
+//      - in the past (status: 'delinquent')
+//      - or within next N days (status: 'upcoming')
+//
 app.get("/api/reports/dues-upcoming", async (req, res) => {
   try {
     const days = parseInt(req.query.days || "30", 10);
@@ -367,36 +402,27 @@ app.get("/api/reports/dues-upcoming", async (req, res) => {
     const results = [];
 
     for (const m of rows) {
-      let lastBase = null;
+      let last;
 
       if (m.lastPaidDate) {
         const parsed = new Date(m.lastPaidDate);
-        if (!Number.isNaN(parsed.getTime())) {
-          lastBase = parsed;
-        }
-      }
-
-      // If no dues paid, fall back to joinDate
-      if (!lastBase && m.joinDate) {
+        last = Number.isNaN(parsed.getTime()) ? null : parsed;
+      } else if (m.joinDate) {
         const jd = new Date(m.joinDate);
-        if (!Number.isNaN(jd.getTime())) {
-          lastBase = jd;
-        }
+        last = Number.isNaN(jd.getTime()) ? null : jd;
+      } else {
+        // No info: assume due at least 1 year ago (so they'll show as delinquent)
+        last = new Date(today);
+        last.setFullYear(last.getFullYear() - 1);
       }
 
-      // If still nothing, treat as overdue baseline (1 year ago)
-      if (!lastBase) {
-        lastBase = new Date(today);
-        lastBase.setFullYear(lastBase.getFullYear() - 1);
-      }
+      if (!last) continue;
 
-      const nextDue = new Date(lastBase);
-      nextDue.setFullYear(nextDue.getFullYear() + 1);
+      const next = new Date(last);
+      next.setFullYear(next.getFullYear() + 1);
 
-      const isDelinquent = nextDue < today;
-      const isUpcoming = nextDue >= today && nextDue <= upper;
-
-      if (isDelinquent || isUpcoming) {
+      if (next <= upper) {
+        const isDelinquent = next < today;
         results.push({
           id: m.id,
           memberNumber: m.memberNumber,
@@ -405,8 +431,10 @@ app.get("/api/reports/dues-upcoming", async (req, res) => {
           clownName: m.clownName,
           email: m.email,
           membershipType: m.membershipType,
-          lastPaidDate: m.lastPaidDate ? m.lastPaidDate.slice(0, 10) : null,
-          nextDueDate: nextDue.toISOString().slice(0, 10),
+          lastPaidDate: m.lastPaidDate
+            ? m.lastPaidDate.slice(0, 10)
+            : null,
+          nextDueDate: next.toISOString().slice(0, 10),
           status: isDelinquent ? "delinquent" : "upcoming"
         });
       }
@@ -430,8 +458,8 @@ app.get("/api/reports/dues-upcoming", async (req, res) => {
 //  attendance_entries(id, reportId, memberId, present)
 // =========================================================
 
-// Create attendance report
-// Body: { year, month, label, presentMemberIds: number[] }
+// POST /api/attendance-reports
+// Body: { year, month, label, presentMemberIds: [] }
 app.post("/api/attendance-reports", async (req, res) => {
   try {
     const { year, month, label, presentMemberIds } = req.body;
@@ -469,7 +497,7 @@ app.post("/api/attendance-reports", async (req, res) => {
   }
 });
 
-// List attendance reports
+// GET /api/attendance-reports
 app.get("/api/attendance-reports", async (req, res) => {
   try {
     const reports = await all(
@@ -483,7 +511,7 @@ app.get("/api/attendance-reports", async (req, res) => {
   }
 });
 
-// Get single attendance report + entries
+// GET /api/attendance-reports/:id  (with entries)
 app.get("/api/attendance-reports/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -492,9 +520,8 @@ app.get("/api/attendance-reports/:id", async (req, res) => {
       "SELECT * FROM attendance_reports WHERE id = ?",
       [id]
     );
-    if (!report) {
+    if (!report)
       return res.status(404).json({ error: "Attendance report not found" });
-    }
 
     const entries = await all(
       `SELECT ae.*,
@@ -515,8 +542,8 @@ app.get("/api/attendance-reports/:id", async (req, res) => {
   }
 });
 
-// Update attendance report
-// Body may include: { year, month, label, presentMemberIds: number[] }
+// PUT /api/attendance-reports/:id
+// Body: { year, month, label, presentMemberIds }
 app.put("/api/attendance-reports/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -526,9 +553,8 @@ app.put("/api/attendance-reports/:id", async (req, res) => {
       "SELECT * FROM attendance_reports WHERE id = ?",
       [id]
     );
-    if (!existing) {
+    if (!existing)
       return res.status(404).json({ error: "Attendance report not found" });
-    }
 
     await run(
       `UPDATE attendance_reports
@@ -564,7 +590,7 @@ app.put("/api/attendance-reports/:id", async (req, res) => {
   }
 });
 
-// Delete attendance report (entries removed via FK cascade)
+// DELETE /api/attendance-reports/:id
 app.delete("/api/attendance-reports/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -582,7 +608,5 @@ app.delete("/api/attendance-reports/:id", async (req, res) => {
 
 const PORT = 4001;
 app.listen(PORT, () => {
-  console.log(
-    `🎪 Cheerful Clown Alley API running on http://localhost:${PORT}`
-  );
+  console.log(`🎪 Cheerful Clown Alley API running on http://localhost:${PORT}`);
 });

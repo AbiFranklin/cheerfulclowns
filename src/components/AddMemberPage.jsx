@@ -1,11 +1,21 @@
-import { useState } from "react";
-import { createMember } from "../api";
+import { useEffect, useState } from "react";
+import { createMember, updateMember } from "../api";
 
-export default function AddMemberPage({ onDone }) {
+const MEMBERSHIP_TYPES = ["Family", "Associate", "Full", "Whisper"];
+const MEMBERSHIP_STATUSES = ["Active", "Inactive", "Honorary"];
+
+export default function AddMemberPage({
+  mode = "add",
+  initialData = null,
+  onDone,
+}) {
+  const isEdit = mode === "edit";
+  const [saving, setSaving] = useState(false);
+
   const [form, setForm] = useState({
     memberNumber: "",
-    firstName: "",
     lastName: "",
+    firstName: "",
     clownName: "",
     address: "",
     city: "",
@@ -16,373 +26,439 @@ export default function AddMemberPage({ onDone }) {
     attendedClownSchool: false,
     clownSchoolClass: "",
     joinDate: "",
-    membershipType: "Full",
+    membershipType: "",
     membershipStatus: "Active",
     deceased: false,
     coaiNumber: "",
     tcaNumber: "",
   });
 
-  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (isEdit && initialData) {
+      setForm({
+        memberNumber: initialData.memberNumber || "",
+        lastName: initialData.lastName || "",
+        firstName: initialData.firstName || "",
+        clownName: initialData.clownName || "",
+        address: initialData.address || "",
+        city: initialData.city || "",
+        state: initialData.state || "",
+        zip: initialData.zip || "",
+        phone: initialData.phone || "",
+        email: initialData.email || "",
+        attendedClownSchool: !!initialData.attendedClownSchool,
+        clownSchoolClass: initialData.clownSchoolClass || "",
+        joinDate: initialData.joinDate || "",
+        membershipType: initialData.membershipType || "",
+        membershipStatus: initialData.membershipStatus || "Active",
+        deceased: !!initialData.deceased,
+        coaiNumber: initialData.coaiNumber || "",
+        tcaNumber: initialData.tcaNumber || "",
+      });
+    }
+  }, [isEdit, initialData]);
 
-  const update = (field, value) =>
+  function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
 
-  const handleSubmit = async (e) => {
+  async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
     try {
-      await createMember(form);
-      onDone(); // go back to Members list
+      const payload = {
+        ...form,
+        attendedClownSchool: form.attendedClownSchool ? 1 : 0,
+        deceased: form.deceased ? 1 : 0,
+      };
+
+      if (isEdit && initialData?.id) {
+        await updateMember(initialData.id, payload);
+      } else {
+        await createMember(payload);
+      }
+
+      if (onDone) onDone();
     } catch (err) {
       console.error(err);
-      alert("There was a problem saving this member.");
+      alert(isEdit ? "Failed to update member." : "Failed to create member.");
     } finally {
       setSaving(false);
     }
+  }
+
+  // small shared style helper
+  const sectionStyle = {
+    border: "1px solid #e5e7eb",
+    borderRadius: "0.9rem",
+    padding: "0.9rem",
+    background: "#fafafa",
+    marginBottom: "0.9rem",
   };
 
-  const label = {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.25rem",
-    fontSize: "0.95rem",
-    color: "#374151",
+  const labelStyle = {
+    display: "block",
+    fontSize: "0.8rem",
+    color: "#6b7280",
+    marginBottom: "0.15rem",
   };
 
-  const input = {
-    padding: "0.5rem 0.65rem",
-    borderRadius: "0.6rem",
+  const inputStyle = {
+    width: "100%",
+    padding: "0.4rem 0.5rem",
+    borderRadius: "0.5rem",
     border: "1px solid #d1d5db",
-    fontSize: "0.98rem",
-  };
-
-  const sectionTitle = {
-    fontSize: "1.05rem",
-    fontWeight: 600,
-    marginBottom: "0.35rem",
-    color: "#111827",
-  };
-
-  const section = {
-    padding: "0.85rem 1rem",
-    borderRadius: "1rem",
-    background: "#fafafc",
-    border: "1px solid rgba(209,213,219,0.7)",
-    display: "grid",
-    gap: "0.6rem",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    fontSize: "0.9rem",
+    boxSizing: "border-box",
   };
 
   return (
     <div className="page-section">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "1rem",
-          marginBottom: "0.85rem",
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0 }}>Add New Member</h2>
-          <p
+      {/* Header */}
+      <header style={{ marginBottom: "0.9rem" }}>
+        <h2 style={{ margin: 0 }}>
+          {isEdit ? "Edit Member" : "Add New Member"}
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            fontSize: "0.95rem",
+            color: "#6b7280",
+          }}
+        >
+          {isEdit
+            ? "Update this member’s information. Changes are saved locally in your Alley database."
+            : "Enter details for a new Cheerful Clown Alley #166 member."}
+        </p>
+      </header>
+
+      <form onSubmit={handleSubmit}>
+        {/* Identity */}
+        <section style={sectionStyle}>
+          <h3
             style={{
-              margin: 0,
+              margin: "0 0 0.5rem",
               fontSize: "0.95rem",
-              color: "#6b7280",
+              fontWeight: 600,
+              color: "#111827",
             }}
           >
-            Enter full details once. This will power your roster, dues, and
-            attendance.
-          </p>
-        </div>
+            Identity
+          </h3>
+
+          <div style={{ display: "grid", gap: "0.45rem" }}>
+            <div>
+              <span style={labelStyle}>Member #</span>
+              <input
+                style={inputStyle}
+                value={form.memberNumber}
+                onChange={(e) => update("memberNumber", e.target.value)}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "0.4rem",
+              }}
+            >
+              <div>
+                <span style={labelStyle}>First Name *</span>
+                <input
+                  style={inputStyle}
+                  required
+                  value={form.firstName}
+                  onChange={(e) => update("firstName", e.target.value)}
+                />
+              </div>
+              <div>
+                <span style={labelStyle}>Last Name *</span>
+                <input
+                  style={inputStyle}
+                  required
+                  value={form.lastName}
+                  onChange={(e) => update("lastName", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <span style={labelStyle}>Clown Name</span>
+              <input
+                style={inputStyle}
+                value={form.clownName}
+                onChange={(e) => update("clownName", e.target.value)}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Contact */}
+        <section style={sectionStyle}>
+          <h3
+            style={{
+              margin: "0 0 0.5rem",
+              fontSize: "0.95rem",
+              fontWeight: 600,
+              color: "#111827",
+            }}
+          >
+            Contact
+          </h3>
+
+          <div style={{ display: "grid", gap: "0.45rem" }}>
+            <div>
+              <span style={labelStyle}>Street Address</span>
+              <input
+                style={inputStyle}
+                value={form.address}
+                onChange={(e) => update("address", e.target.value)}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1.5fr 0.6fr 0.8fr",
+                gap: "0.4rem",
+              }}
+            >
+              <div>
+                <span style={labelStyle}>City</span>
+                <input
+                  style={inputStyle}
+                  value={form.city}
+                  onChange={(e) => update("city", e.target.value)}
+                />
+              </div>
+              <div>
+                <span style={labelStyle}>State</span>
+                <input
+                  style={inputStyle}
+                  value={form.state}
+                  onChange={(e) => update("state", e.target.value)}
+                />
+              </div>
+              <div>
+                <span style={labelStyle}>Zip</span>
+                <input
+                  style={inputStyle}
+                  value={form.zip}
+                  onChange={(e) => update("zip", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <span style={labelStyle}>Phone</span>
+              <input
+                style={inputStyle}
+                value={form.phone}
+                onChange={(e) => update("phone", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <span style={labelStyle}>Email</span>
+              <input
+                type="email"
+                style={inputStyle}
+                value={form.email}
+                onChange={(e) => update("email", e.target.value)}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Membership */}
+        <section style={sectionStyle}>
+          <h3
+            style={{
+              margin: "0 0 0.5rem",
+              fontSize: "0.95rem",
+              fontWeight: 600,
+              color: "#111827",
+            }}
+          >
+            Membership
+          </h3>
+
+          <div style={{ display: "grid", gap: "0.45rem" }}>
+            <div>
+              <span style={labelStyle}>Join Date</span>
+              <input
+                type="date"
+                style={inputStyle}
+                value={form.joinDate}
+                onChange={(e) => update("joinDate", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <span style={labelStyle}>Membership Type</span>
+              <select
+                style={inputStyle}
+                value={form.membershipType}
+                onChange={(e) => update("membershipType", e.target.value)}
+              >
+                <option value="">Select type...</option>
+                {MEMBERSHIP_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <span style={labelStyle}>Membership Status</span>
+              <select
+                style={inputStyle}
+                value={form.membershipStatus}
+                onChange={(e) => update("membershipStatus", e.target.value)}
+              >
+                {MEMBERSHIP_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                fontSize: "0.85rem",
+                color: "#4b5563",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={form.attendedClownSchool}
+                onChange={(e) =>
+                  update("attendedClownSchool", e.target.checked)
+                }
+              />
+              Attended Clown School
+            </label>
+
+            <div>
+              <span style={labelStyle}>Clown School Class</span>
+              <input
+                style={inputStyle}
+                value={form.clownSchoolClass}
+                onChange={(e) =>
+                  update("clownSchoolClass", e.target.value)
+                }
+              />
+            </div>
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                fontSize: "0.85rem",
+                color: "#b91c1c",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={form.deceased}
+                onChange={(e) => update("deceased", e.target.checked)}
+              />
+              Mark as Deceased
+            </label>
+          </div>
+        </section>
+
+        {/* Organization IDs */}
+        <section style={sectionStyle}>
+          <h3
+            style={{
+              margin: "0 0 0.5rem",
+              fontSize: "0.95rem",
+              fontWeight: 600,
+              color: "#111827",
+            }}
+          >
+            Organization IDs
+          </h3>
+
+          <div style={{ display: "grid", gap: "0.45rem" }}>
+            <div>
+              <span style={labelStyle}>COAI Number</span>
+              <input
+                style={inputStyle}
+                value={form.coaiNumber}
+                onChange={(e) => update("coaiNumber", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <span style={labelStyle}>TCA Number</span>
+              <input
+                style={inputStyle}
+                value={form.tcaNumber}
+                onChange={(e) => update("tcaNumber", e.target.value)}
+              />
+            </div>
+          </div>
+        </section>
+      </form>
+
+      {/* Actions */}
+      <div
+        style={{
+          marginTop: "1rem",
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: "0.5rem",
+        }}
+      >
         <button
           type="button"
           onClick={onDone}
+          disabled={saving}
           style={{
-            padding: "0.4rem 1rem",
+            padding: "0.5rem 1.1rem",
             borderRadius: "999px",
             border: "1px solid #d1d5db",
-            background: "#fff",
+            background: "#ffffff",
             fontSize: "0.9rem",
             cursor: "pointer",
           }}
         >
-          ← Back to Members
+          Cancel
         </button>
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}
-      >
-        {/* Basic Identity */}
-        <div style={section}>
-          <div style={sectionTitle}>Basic Info</div>
-          <label style={label}>
-            Member Number *
-            <input
-              style={input}
-              value={form.memberNumber}
-              onChange={(e) => update("memberNumber", e.target.value)}
-              required
-            />
-          </label>
-          <label style={label}>
-            First Name *
-            <input
-              style={input}
-              value={form.firstName}
-              onChange={(e) => update("firstName", e.target.value)}
-              required
-            />
-          </label>
-          <label style={label}>
-            Last Name *
-            <input
-              style={input}
-              value={form.lastName}
-              onChange={(e) => update("lastName", e.target.value)}
-              required
-            />
-          </label>
-          <label style={label}>
-            Clown Name
-            <input
-              style={input}
-              value={form.clownName}
-              onChange={(e) => update("clownName", e.target.value)}
-              placeholder="KnitWit, Bubbles, etc."
-            />
-          </label>
-        </div>
-
-        {/* Contact Details */}
-        <div style={section}>
-          <div style={sectionTitle}>Contact Details</div>
-
-          {/* Address Row */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr 0.5fr 0.8fr",
-              gap: "0.6rem",
-              alignItems: "start",
-              gridColumn: "1 / -1",
-            }}
-          >
-            <label style={label}>
-              Address
-              <input
-                style={input}
-                value={form.address}
-                onChange={(e) => update("address", e.target.value)}
-              />
-            </label>
-
-            <label style={label}>
-              City
-              <input
-                style={input}
-                value={form.city}
-                onChange={(e) => update("city", e.target.value)}
-              />
-            </label>
-
-            <label style={label}>
-              State
-              <input
-                style={input}
-                value={form.state}
-                onChange={(e) => update("state", e.target.value)}
-              />
-            </label>
-
-            <label style={label}>
-              Zip
-              <input
-                style={input}
-                value={form.zip}
-                onChange={(e) => update("zip", e.target.value)}
-              />
-            </label>
-          </div>
-
-          {/* Contact Row */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "0.6rem",
-              alignItems: "start",
-              gridColumn: "1 / -1",
-            }}
-          >
-            <label style={label}>
-              Phone Number
-              <input
-                style={input}
-                value={form.phone}
-                onChange={(e) => update("phone", e.target.value)}
-              />
-            </label>
-
-            <label style={label}>
-              Email Address
-              <input
-                style={input}
-                type="email"
-                value={form.email}
-                onChange={(e) => update("email", e.target.value)}
-              />
-            </label>
-          </div>
-        </div>
-
-        {/* Membership */}
-        <div style={section}>
-          <div style={sectionTitle}>Membership Details</div>
-          <label style={label}>
-            Join Date
-            <input
-              type="date"
-              style={input}
-              value={form.joinDate}
-              onChange={(e) => update("joinDate", e.target.value)}
-            />
-          </label>
-          <label style={label}>
-            Membership Type
-            <select
-              style={input}
-              value={form.membershipType}
-              onChange={(e) => update("membershipType", e.target.value)}
-            >
-              <option value="Family">Family</option>
-              <option value="Associate">Associate</option>
-              <option value="Full">Full</option>
-              <option value="Whisper">Whisper</option>
-            </select>
-          </label>
-          <label style={label}>
-            Membership Status
-            <select
-              style={input}
-              value={form.membershipStatus}
-              onChange={(e) => update("membershipStatus", e.target.value)}
-            >
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-              <option value="Honorary">Honorary</option>
-            </select>
-          </label>
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              fontSize: "0.95rem",
-              color: "#374151",
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={form.deceased}
-              onChange={(e) => update("deceased", e.target.checked)}
-            />
-            Deceased
-          </label>
-        </div>
-
-        {/* Clown School + IDs */}
-        <div style={section}>
-          <div style={sectionTitle}>Clown School & Associations</div>
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              fontSize: "0.95rem",
-              color: "#374151",
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={form.attendedClownSchool}
-              onChange={(e) =>
-                update("attendedClownSchool", e.target.checked)
-              }
-            />
-            Attended Clown School
-          </label>
-          <label style={label}>
-            Clown School Class
-            <input
-              style={input}
-              value={form.clownSchoolClass}
-              onChange={(e) => update("clownSchoolClass", e.target.value)}
-            />
-          </label>
-          <label style={label}>
-            COAI Number
-            <input
-              style={input}
-              value={form.coaiNumber}
-              onChange={(e) => update("coaiNumber", e.target.value)}
-            />
-          </label>
-          <label style={label}>
-            TCA Number
-            <input
-              style={input}
-              value={form.tcaNumber}
-              onChange={(e) => update("tcaNumber", e.target.value)}
-            />
-          </label>
-        </div>
-
-        {/* Actions */}
-        <div
+        <button
+          type="submit"
+          onClick={handleSubmit}
+          disabled={saving}
           style={{
-            display: "flex",
-            gap: "0.75rem",
-            marginTop: "0.4rem",
+            padding: "0.55rem 1.3rem",
+            borderRadius: "999px",
+            border: "none",
+            background: "#1982c4",
+            color: "#ffffff",
+            fontWeight: 600,
+            fontSize: "0.9rem",
+            cursor: "pointer",
+            opacity: saving ? 0.85 : 1,
           }}
         >
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              padding: "0.6rem 1.6rem",
-              borderRadius: "999px",
-              border: "none",
-              background: "#1982c4",
-              color: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-              opacity: saving ? 0.7 : 1,
-            }}
-          >
-            {saving ? "Saving..." : "Save Member"}
-          </button>
-          <button
-            type="button"
-            onClick={onDone}
-            style={{
-              padding: "0.6rem 1.3rem",
-              borderRadius: "999px",
-              border: "1px solid #d1d5db",
-              background: "#fff",
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
+          {saving
+            ? isEdit
+              ? "Saving..."
+              : "Creating..."
+            : isEdit
+            ? "Save Changes"
+            : "Create Member"}
+        </button>
+      </div>
     </div>
   );
 }
