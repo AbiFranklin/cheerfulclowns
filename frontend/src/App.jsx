@@ -1,3 +1,5 @@
+// src/App.jsx
+
 import { useState } from "react";
 import Layout from "./components/Layout.jsx";
 import MembersPage from "./components/MembersPage.jsx";
@@ -14,11 +16,15 @@ function App() {
       {tab === "members" && (
         <MembersPage goToAddMember={() => setTab("add-member")} />
       )}
+
       {tab === "add-member" && (
         <AddMemberPage onDone={() => setTab("members")} />
       )}
+
       {tab === "dues" && <DuesPage />}
+
       {tab === "attendance" && <AttendancePage />}
+
       {tab === "reports" && <ReportsPage />}
     </Layout>
   );

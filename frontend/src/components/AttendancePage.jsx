@@ -1,8 +1,8 @@
+// src/components/AttendancePage.jsx
+
 import { useEffect, useState } from "react";
 import {
   fetchMembers,
-} from "../api";
-import {
   fetchAttendanceReports,
   fetchAttendanceReport,
   createAttendanceReport,
@@ -12,7 +12,7 @@ import {
 
 const monthNames = [
   "January","February","March","April","May","June",
-  "July","August","September","October","November","December"
+  "July","August","September","October","November","December",
 ];
 
 export default function AttendancePage() {
@@ -21,14 +21,13 @@ export default function AttendancePage() {
   const [month, setMonth] = useState(now.getMonth() + 1); // 1-12
   const [members, setMembers] = useState([]);
   const [reports, setReports] = useState([]);
-  const [currentReport, setCurrentReport] = useState(null); // { id, year, month, label, entries: [] }
+  const [currentReport, setCurrentReport] = useState(null);
   const [presentIds, setPresentIds] = useState(new Set());
   const [label, setLabel] = useState("");
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Load active members + existing reports initially
+  // Initial load: active members + existing reports
   useEffect(() => {
     (async () => {
       try {
@@ -36,16 +35,17 @@ export default function AttendancePage() {
           fetchMembers({ status: "Active" }),
           fetchAttendanceReports(),
         ]);
-        // sort by clown name for stable checkbox order
+
         membersData.sort((a, b) => {
           const an = (a.clownName || `${a.firstName} ${a.lastName}`).toLowerCase();
           const bn = (b.clownName || `${b.firstName} ${b.lastName}`).toLowerCase();
           return an.localeCompare(bn);
         });
+
         setMembers(membersData);
         setReports(reportsData);
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error(err);
         alert("Failed to load attendance data.");
       } finally {
         setLoading(false);
@@ -53,7 +53,7 @@ export default function AttendancePage() {
     })();
   }, []);
 
-  // When month/year changes, attempt to load/create report
+  // When month/year changes, load or create that report
   useEffect(() => {
     if (!loading) {
       loadOrInitReport(year, month);
@@ -61,9 +61,8 @@ export default function AttendancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, month, loading]);
 
-  const loadOrInitReport = async (y, m) => {
+  async function loadOrInitReport(y, m) {
     try {
-      // Is there an existing report for this year/month?
       const existing = reports.find(
         (r) => r.year === Number(y) && r.month === Number(m)
       );
@@ -79,7 +78,6 @@ export default function AttendancePage() {
         );
         setPresentIds(ids);
       } else {
-        // No report yet: create a blank one with no present members
         const created = await createAttendanceReport({
           year: Number(y),
           month: Number(m),
@@ -96,18 +94,18 @@ export default function AttendancePage() {
       console.error(err);
       alert("Failed to load or create attendance report.");
     }
-  };
+  }
 
-  const togglePresent = (memberId) => {
+  function togglePresent(memberId) {
     setPresentIds((prev) => {
       const next = new Set(prev);
       if (next.has(memberId)) next.delete(memberId);
       else next.add(memberId);
       return next;
     });
-  };
+  }
 
-  const handleSave = async () => {
+  async function handleSave() {
     if (!currentReport) return;
     setSaving(true);
     try {
@@ -119,7 +117,6 @@ export default function AttendancePage() {
       });
       const full = await fetchAttendanceReport(currentReport.id);
       setCurrentReport(full);
-      // refresh summary list
       const all = await fetchAttendanceReports();
       setReports(all);
     } catch (err) {
@@ -128,9 +125,9 @@ export default function AttendancePage() {
     } finally {
       setSaving(false);
     }
-  };
+  }
 
-  const handleDelete = async () => {
+  async function handleDelete() {
     if (!currentReport) return;
     if (!window.confirm("Delete this attendance report?")) return;
     try {
@@ -140,20 +137,21 @@ export default function AttendancePage() {
       setCurrentReport(null);
       setPresentIds(new Set());
       setLabel("");
-      // after delete, don't auto-create; user can change month/year to recreate
     } catch (err) {
       console.error(err);
       alert("Failed to delete attendance report.");
     }
-  };
+  }
 
-  const handleSelectReport = async (report) => {
+  async function handleSelectReport(report) {
     try {
       setYear(report.year);
       setMonth(report.month);
       const full = await fetchAttendanceReport(report.id);
       setCurrentReport(full);
-      setLabel(full.label || `${monthNames[report.month - 1]} ${report.year} Meeting`);
+      setLabel(
+        full.label || `${monthNames[report.month - 1]} ${report.year} Meeting`
+      );
       const ids = new Set(
         (full.entries || [])
           .filter((e) => e.present)
@@ -164,14 +162,10 @@ export default function AttendancePage() {
       console.error(err);
       alert("Failed to load selected report.");
     }
-  };
+  }
 
   if (loading) {
-    return (
-      <div className="page-section">
-        Loading attendance...
-      </div>
-    );
+    return <div className="page-section">Loading attendance...</div>;
   }
 
   return (
@@ -200,7 +194,7 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Controls row */}
+      {/* Controls */}
       <div
         style={{
           display: "flex",
@@ -300,7 +294,7 @@ export default function AttendancePage() {
         </button>
       </div>
 
-      {/* Active members checklist */}
+      {/* Checklist */}
       <div
         style={{
           padding: "0.75rem 0.8rem",
@@ -312,12 +306,7 @@ export default function AttendancePage() {
         }}
       >
         {members.length === 0 ? (
-          <div
-            style={{
-              fontSize: "0.9rem",
-              color: "#9ca3af",
-            }}
-          >
+          <div style={{ fontSize: "0.9rem", color: "#9ca3af" }}>
             No active members found. Add members first to track attendance.
           </div>
         ) : (
@@ -329,10 +318,9 @@ export default function AttendancePage() {
             }}
           >
             {members.map((m) => {
-              const labelText =
-                m.clownName
-                  ? `${m.clownName} (${m.firstName} ${m.lastName})`
-                  : `${m.firstName} ${m.lastName}`;
+              const labelText = m.clownName
+                ? `${m.clownName} (${m.firstName} ${m.lastName})`
+                : `${m.firstName} ${m.lastName}`;
               const checked = presentIds.has(m.id);
               return (
                 <label
@@ -358,7 +346,7 @@ export default function AttendancePage() {
         )}
       </div>
 
-      {/* Past reports list (right now: simple clickable list) */}
+      {/* Previous reports */}
       <div style={{ marginTop: "0.9rem" }}>
         <div
           style={{
@@ -371,12 +359,7 @@ export default function AttendancePage() {
           Previous Attendance Reports
         </div>
         {reports.length === 0 ? (
-          <div
-            style={{
-              fontSize: "0.85rem",
-              color: "#9ca3af",
-            }}
-          >
+          <div style={{ fontSize: "0.85rem", color: "#9ca3af" }}>
             No reports yet. Saving your first month will create one.
           </div>
         ) : (
@@ -402,9 +385,7 @@ export default function AttendancePage() {
                     border: isActive
                       ? "none"
                       : "1px solid rgba(209,213,219,0.9)",
-                    background: isActive
-                      ? "#ffca3a"
-                      : "#ffffff",
+                    background: isActive ? "#ffca3a" : "#ffffff",
                     cursor: "pointer",
                     boxShadow: isActive
                       ? "0 2px 6px rgba(15,23,42,0.15)"
